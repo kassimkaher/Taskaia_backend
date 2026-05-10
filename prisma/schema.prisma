@@ -1,0 +1,30 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Recording {
+  id              String          @id @default(cuid())
+  rawText         String          @db.Text
+  summary         String?         @db.Text
+  notionPageId    String?
+  notionPageUrl   String?
+  trelloCardId    String?
+  trelloCardUrl   String?
+  status          RecordingStatus @default(PENDING)
+  durationSeconds Int
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+enum RecordingStatus {
+  PENDING
+  TRANSCRIBED
+  SUMMARIZED
+  COMPLETED
+  FAILED
+}
