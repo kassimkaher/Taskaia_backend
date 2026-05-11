@@ -198,6 +198,19 @@ const normalizeText = (value: string): string =>
     .replace(/\s+/g, ' ')
     .trim();
 
+// Collapse common Arabic romanization variants so "baker"↔"baqer", "yousuf"↔"yousif", etc. match.
+const normalizeTranslit = (value: string): string =>
+  value
+    .replace(/qu/g, 'ku')
+    .replace(/q/g, 'k')
+    .replace(/ph/g, 'f')
+    .replace(/aa/g, 'a')
+    .replace(/ee/g, 'i')
+    .replace(/oo/g, 'u')
+    .replace(/ou/g, 'u')
+    .replace(/ei/g, 'i')
+    .replace(/ai/g, 'a');
+
 const containsNormalizedPhrase = (haystack: string, needle: string): boolean => {
   if (!haystack || !needle) return false;
   return ` ${haystack} `.includes(` ${needle} `);
@@ -289,8 +302,9 @@ const inferAssigneeFromText = (
 ): string | null => {
   if (!rawText || users.length === 0) return null;
   const normalizedRaw = normalizeText(rawText);
+  const translitRaw = normalizeTranslit(normalizedRaw);
 
-  // Full display-name match (e.g. "Ahmad Al-Hassan")
+  // Pass 1: exact normalized display-name match
   for (const user of users) {
     const normalizedName = normalizeText(user.displayName);
     if (normalizedName.length >= 3 && containsNormalizedPhrase(normalizedRaw, normalizedName)) {
@@ -298,7 +312,15 @@ const inferAssigneeFromText = (
     }
   }
 
-  // Email-prefix match (e.g. "john" from "john@company.com")
+  // Pass 2: transliteration-tolerant match (e.g. "baker" matches "baqer", q↔k variants)
+  for (const user of users) {
+    const translitName = normalizeTranslit(normalizeText(user.displayName));
+    if (translitName.length >= 3 && containsNormalizedPhrase(translitRaw, translitName)) {
+      return user.accountId;
+    }
+  }
+
+  // Pass 3: email-prefix match (e.g. "john" from "john@company.com")
   for (const user of users) {
     if (!user.emailAddress) continue;
     const prefix = normalizeText(user.emailAddress.split('@')[0]);
@@ -386,7 +408,11 @@ const parseExtraction = (
   // 2. LLM may have returned a display name instead of the opaque accountId — reverse-map it
   const llmAssigneeRaw = validateString(obj.assigneeAccountId);
   const assigneeByDisplayName = !validUsers.has(llmAssigneeRaw) && llmAssigneeRaw
-    ? (ctx.jira?.users ?? []).find(u => normalizeText(u.displayName) === normalizeText(llmAssigneeRaw))?.accountId ?? null
+    ? (ctx.jira?.users ?? []).find(u => {
+        const normA = normalizeText(u.displayName);
+        const normB = normalizeText(llmAssigneeRaw);
+        return normA === normB || normalizeTranslit(normA) === normalizeTranslit(normB);
+      })?.accountId ?? null
     : null;
   // Priority: text inference > valid LLM accountId > reverse-mapped display name
   const assigneeAccountId =

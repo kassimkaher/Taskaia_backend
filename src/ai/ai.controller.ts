@@ -24,6 +24,8 @@ const extractSchema = z.object({
   recordingId: z.string().min(1),
   rawText: z.string().min(1),
   provider: z.enum(['trello', 'jira']).optional(),
+  jiraProjectKey: z.string().optional(),
+  jiraBoardId: z.string().optional(),
   // Optional pre-fetched context. When omitted, the backend fetches it.
   trello: z.object({
     labels: z.array(trelloLabelSchema).optional(),
@@ -63,14 +65,50 @@ const buildContext = async (
 
   const projects =
     payload.jira?.projects ?? (await jiraService.getProjects().catch(() => []));
-  const users =
-    payload.jira?.users ?? (await jiraService.getProjectUsers().catch(() => []));
-  const labels =
-    payload.jira?.labels ?? (await jiraService.getProjectLabels().catch(() => []));
-  const sprints =
-    payload.jira?.sprints ?? (await jiraService.getActiveSprints().catch(() => []));
-  const issueTypes =
-    payload.jira?.issueTypes ?? (await jiraService.getIssueTypes().catch(() => []));
+
+  // Resolve the best available project key:
+  // 1. client-supplied default  2. configured in settings  3. first project in workspace
+  const resolvedProjectKey =
+    payload.jiraProjectKey ||
+    settingsService.getStore().jiraProjectKey ||
+    projects[0]?.key ||
+    null;
+
+  const users = payload.jira?.users
+    ? payload.jira.users
+    : resolvedProjectKey
+      ? await jiraService.getProjectUsers(resolvedProjectKey).catch(async () =>
+          // Single-project fetch failed — fall back to workspace-wide search
+          jiraService.getWorkspaceUsers(projects.map(p => p.key)).catch(() => [])
+        )
+      : await jiraService.getWorkspaceUsers(projects.map(p => p.key)).catch(() => []);
+
+  const labels = payload.jira?.labels
+    ? payload.jira.labels
+    : resolvedProjectKey
+      ? await jiraService.getProjectLabels(resolvedProjectKey).catch(() => [])
+      : [];
+
+  const issueTypes = payload.jira?.issueTypes
+    ? payload.jira.issueTypes
+    : resolvedProjectKey
+      ? await jiraService.getIssueTypes(resolvedProjectKey).catch(() => [])
+      : [];
+
+  const sprints = await (async () => {
+    if (payload.jira?.sprints) return payload.jira.sprints;
+    const boardId =
+      payload.jiraBoardId ||
+      settingsService.getStore().jiraBoardId ||
+      null;
+    if (boardId) return jiraService.getActiveSprints(boardId).catch(() => []);
+    // No board ID — try to find one from the resolved project
+    if (!resolvedProjectKey) return [];
+    const boards = await jiraService.getBoards(resolvedProjectKey).catch(() => []);
+    return boards.length
+      ? jiraService.getActiveSprints(boards[0].id).catch(() => [])
+      : [];
+  })();
 
   return {
     provider: 'jira',
@@ -84,6 +122,7 @@ const buildContext = async (
       labels: labels.map(l => ({ name: l.name })),
       sprints: sprints.map(s => ({ id: s.id, name: s.name, state: s.state })),
       issueTypes: issueTypes.map(t => ({ id: t.id, name: t.name })),
+      defaultProjectKey: resolvedProjectKey ?? undefined,
     },
   };
 };

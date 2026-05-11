@@ -173,6 +173,27 @@ export async function getJiraProjectUsers(projectKey: string): Promise<JiraUser[
     }));
 }
 
+export async function getJiraWorkspaceUsers(projectKeys: string[]): Promise<JiraUser[]> {
+  const store = requireJira();
+  const keys = projectKeys.slice(0, 10).map(k => encodeURIComponent(k)).join(',');
+  const { data } = await jiraRequest(
+    store,
+    `/rest/api/3/user/assignable/multiProjectSearch?projectKeys=${keys}&maxResults=100`,
+    { method: 'GET' },
+  );
+  const list = Array.isArray(data) ? data : [];
+  // Deduplicate by accountId
+  const seen = new Set<string>();
+  return list
+    .filter((u: any) => u.active !== false && !u.accountType?.includes('app') && seen.size !== seen.add(u.accountId).size)
+    .map((u: any) => ({
+      accountId: u.accountId,
+      displayName: u.displayName || u.emailAddress || u.accountId,
+      emailAddress: u.emailAddress,
+      active: Boolean(u.active),
+    }));
+}
+
 export async function getJiraProjectLabels(projectKey: string): Promise<JiraLabel[]> {
   const store = requireJira();
   // Jira labels are global; we surface the labels currently used in the project.

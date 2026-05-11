@@ -11,6 +11,7 @@ import {
     getJiraProjectLabels,
     getJiraProjects,
     getJiraProjectUsers,
+    getJiraWorkspaceUsers,
 } from './mcp/jira-tools.js';
 
 const MOCK_PROJECTS = [
@@ -117,6 +118,12 @@ export const jiraService = {
     requireConfigured();
     if (!key) throw new AppError('JIRA_NOT_CONFIGURED', 'Project key required', 400);
     return getJiraProjectUsers(key);
+  },
+
+  async getWorkspaceUsers(projectKeys: string[]) {
+    if (env.MOCK_MODE) return MOCK_USERS;
+    requireBasicAuth();
+    return getJiraWorkspaceUsers(projectKeys);
   },
 
   async getProjectLabels(projectKey?: string) {
