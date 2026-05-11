@@ -63,10 +63,12 @@ Returns current settings state — **non-sensitive** (no raw API keys). Returns 
 {
   "status": "success",
   "data": {
+    "provider": "trello",
     "configured": {
       "stt": true,
-      "notion": true,
       "trello": true,
+      "jira": false,
+      "active": true,
       "allReady": true
     },
     "sttProvider": "whisper",
@@ -74,25 +76,31 @@ Returns current settings state — **non-sensitive** (no raw API keys). Returns 
     "trelloBoardName": "My Project Board",
     "trelloListId": "list_xyz789",
     "trelloListName": "To-Do",
+    "jiraHost": null,
+    "jiraProjectKey": null,
+    "jiraProjectName": null,
+    "jiraBoardId": null,
     "autoSend": false
   }
 }
 ```
 
 ### PUT `/settings`
-Saves all API keys and configuration. Keys are persisted in the backend `.env` or a secure config store (never returned in GET).
+Saves API keys and configuration. Keys are persisted in the backend `.env` or a secure config store (never returned in GET). Either Trello fields, Jira fields, or both may be supplied. Only the `provider` field is required to switch the active backend.
 
 **Request:**
 ```json
 {
-  "sttProvider": "whisper",
-  "sttApiKey": "sk-...",
-  "notionToken": "secret_...",
-  "notionPageId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "provider": "jira",
   "trelloApiKey": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "trelloToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "trelloBoardId": "board_abc123",
   "trelloListId": "list_xyz789",
+  "jiraHost": "your-org.atlassian.net",
+  "jiraEmail": "you@example.com",
+  "jiraApiToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "jiraProjectKey": "TASK",
+  "jiraBoardId": "1",
   "autoSend": false
 }
 ```
@@ -104,7 +112,7 @@ Saves all API keys and configuration. Keys are persisted in the backend `.env` o
   "data": {
     "configured": {
       "stt": true,
-      "notion": true,
+      "ai": true,
       "trello": true,
       "allReady": true
     }
@@ -181,18 +189,28 @@ Uploads an audio file. Sends to STT provider (Whisper/Google) and returns raw tr
 
 ---
 
-## 4. Notion Summarization
+## 4. AI Extraction (AI extraction Summarize)
 
-### POST `/notion/summarize`
-Sends raw transcript to Notion. Notion AI (or LLM fallback) generates a summary. Saves both transcript + summary to Notion page. Updates DB record.
+### POST `/ai/extract`
+Takes a raw transcript and returns a **structured task** ready for the user's chosen provider. The backend pre-fetches the active provider's catalogs (lists/labels/members for Trello, projects/users/labels/sprints/issue types for Jira), then asks the LLM to extract a polished title, description, type, assignee, and other slots — using **only ids/keys from those catalogs**. If the client has already cached the catalogs it can pass them in the body to skip the pre-fetch.
 
 **Request:**
 ```json
 {
   "recordingId": "rec_a1b2c3d4",
-  "rawText": "So the main thing I wanted to do today was..."
+  "rawText": "Ask Sarah to fix the broken login flow on iOS, this sprint, mark it urgent.",
+  "provider": "jira",
+  "jira": {
+    "projects":   [{ "key": "TASK", "name": "Taskaia Mobile" }],
+    "users":      [{ "accountId": "acc_alice", "displayName": "Alice" }],
+    "labels":     [{ "name": "urgent" }],
+    "sprints":    [{ "id": 401, "name": "Sprint 12", "state": "active" }],
+    "issueTypes": [{ "id": "10001", "name": "Task" }]
+  }
 }
 ```
+
+`provider` is optional — defaults to the value saved in Settings. Pre-fetched arrays are optional and override the backend lookup when present.
 
 **Response `200`:**
 ```json
@@ -200,16 +218,30 @@ Sends raw transcript to Notion. Notion AI (or LLM fallback) generates a summary.
   "status": "success",
   "data": {
     "recordingId": "rec_a1b2c3d4",
-    "summary": "Set up authentication module and implement token expiry error handling.",
-    "notionPageId": "notion_page_xxxxxxxx",
-    "notionPageUrl": "https://notion.so/page/xxxxxxxx"
+    "rawText": "Ask Sarah to fix the broken login flow on iOS...",
+    "title": "Fix broken iOS login flow",
+    "description": "Investigate the iOS login regression and ship a fix this sprint.",
+    "type": "bug",
+    "summary": "Fix broken iOS login flow",
+
+    "suggestedListId": null,
+    "suggestedLabelIds": [],
+    "suggestedMemberIds": [],
+
+    "suggestedProjectKey": "TASK",
+    "suggestedSprintId": 401,
+    "suggestedAssigneeAccountId": "acc_alice",
+    "suggestedLabelNames": ["urgent"],
+    "suggestedIssueTypeName": "Task"
   }
 }
 ```
 
+For `provider: "trello"`, the Trello fields are populated and the Jira fields are `null`/empty. The `summary` field is preserved for older clients.
+
 **Errors:**
-- `422` `NOTION_SUMMARIZE_FAILED` — Notion API or summarization error
-- `400` `NOTION_NOT_CONFIGURED` — Notion token not set
+- `422` `VALIDATION_ERROR` — request shape invalid
+- `400` `STT_NOT_CONFIGURED` — no LLM API key available
 
 ---
 
@@ -222,7 +254,7 @@ Creates a new Trello card on the configured board/list using the MCP `add_trello
 ```json
 {
   "title": "Set up authentication module and implement token expiry error handling.",
-  "description": "Action item from voice recording — 2026-04-24.\n\nFull summary: Set up the auth module with proper token expiry handling.\n\nNotion page: https://notion.so/page/xxxxxxxx",
+  "description": "Action item from voice recording — 2026-04-24.\n\nFull summary: Set up the auth module with proper token expiry handling.\n\nAI extraction record: https://example.invalid/snapshot/xxxxxxxx",
   "recordingId": "rec_a1b2c3d4"
 }
 ```
@@ -279,7 +311,116 @@ Fetches active cards from the configured Trello board/list using MCP `get_trello
 
 ---
 
-## 6. Recordings History (Optional — for future use)
+## 6. Jira (Atlassian Cloud)
+
+All Jira endpoints require Settings to have `jiraHost`, `jiraEmail`, `jiraApiToken`, and `jiraProjectKey` configured (or `MOCK_MODE=true`).
+
+### POST `/jira/issue`
+Creates a new Jira issue in the configured project. If `sprintId` is provided, the issue is also added to that sprint via the Agile API.
+
+**Request:**
+```json
+{
+  "title": "Fix broken iOS login flow",
+  "description": "Investigate the iOS login regression and ship a fix this sprint.",
+  "projectKey": "TASK",
+  "issueTypeName": "Bug",
+  "assigneeAccountId": "acc_alice",
+  "labels": ["urgent", "mobile"],
+  "sprintId": 401,
+  "recordingId": "rec_a1b2c3d4"
+}
+```
+
+`projectKey`, `issueTypeName`, `assigneeAccountId`, `labels`, and `sprintId` are optional — defaults come from Settings or are left unset.
+
+**Response `200`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "issueId": "10999",
+    "issueKey": "TASK-99",
+    "issueUrl": "https://your-org.atlassian.net/browse/TASK-99",
+    "projectKey": "TASK"
+  },
+  "message": "Task added to Jira successfully"
+}
+```
+
+### GET `/jira/issues`
+Lists recent issues from a Jira project. Optional `sprintId` query param filters to one sprint.
+
+**Query params:** `projectKey?`, `sprintId?`
+
+**Response `200`:**
+```json
+{
+  "status": "success",
+  "data": {
+    "issues": [
+      {
+        "id": "10100",
+        "key": "TASK-1",
+        "title": "Design provider selection screen",
+        "description": "First-launch picker for Trello vs Jira.",
+        "url": "https://your-org.atlassian.net/browse/TASK-1",
+        "status": "In Progress",
+        "issueType": "Story",
+        "projectKey": "TASK",
+        "assignee": { "accountId": "acc_alice", "displayName": "Alice", "active": true },
+        "labels": ["frontend", "mobile"],
+        "sprintId": 401,
+        "sprintName": "Sprint 12 — Voice2Board",
+        "createdAt": "2026-05-10T12:00:00.000Z"
+      }
+    ],
+    "total": 1
+  }
+}
+```
+
+### GET `/jira/projects`
+Returns the Jira projects the configured account can see.
+
+```json
+{ "status": "success", "data": { "projects": [{ "id": "10000", "key": "TASK", "name": "Taskaia Mobile" }] } }
+```
+
+### GET `/jira/members?projectKey=TASK`
+Assignable users for the given project (defaults to the configured project key).
+
+```json
+{ "status": "success", "data": { "users": [{ "accountId": "acc_alice", "displayName": "Alice", "active": true }] } }
+```
+
+### GET `/jira/labels?projectKey=TASK`
+Labels currently in use across the project.
+
+```json
+{ "status": "success", "data": { "labels": [{ "name": "urgent" }, { "name": "mobile" }] } }
+```
+
+### GET `/jira/sprints?boardId=1`
+Active and upcoming sprints for the given agile board (defaults to configured `jiraBoardId`).
+
+```json
+{ "status": "success", "data": { "sprints": [{ "id": 401, "name": "Sprint 12", "state": "active" }] } }
+```
+
+### GET `/jira/issue-types?projectKey=TASK`
+Issue types available for the project (Task, Bug, Story, Epic, …).
+
+```json
+{ "status": "success", "data": { "issueTypes": [{ "id": "10001", "name": "Task" }] } }
+```
+
+**Errors (all Jira endpoints):**
+- `400` `JIRA_NOT_CONFIGURED` — credentials/project key missing.
+
+---
+
+## 7. Recordings History (Optional — for future use)
 
 ### GET `/recordings`
 List of all processed recordings stored in DB.
@@ -294,7 +435,7 @@ List of all processed recordings stored in DB.
         "id": "rec_a1b2c3d4",
         "rawText": "So the main thing...",
         "summary": "Set up authentication module...",
-        "notionPageUrl": "https://notion.so/...",
+        "extractionSnapshotUrl": "https://ai extraction.so/...",
         "trelloCardId": "trello_card_001",
         "trelloCardUrl": "https://trello.com/c/ABCDEFGH/...",
         "status": "completed",
@@ -315,9 +456,9 @@ List of all processed recordings stored in DB.
 |-------|------|----------|-------------|
 | id | string | yes | `rec_` prefixed UUID |
 | rawText | string | yes | Full STT transcript |
-| summary | string? | no | Notion-generated summary |
-| notionPageId | string? | no | Notion page reference |
-| notionPageUrl | string? | no | Notion page URL |
+| summary | string? | no | AI-extracted task |
+| extractionSnapshotId | string? | no | AI extraction record reference |
+| extractionSnapshotUrl | string? | no | AI extraction record URL |
 | trelloCardId | string? | no | Trello card ID after creation |
 | trelloCardUrl | string? | no | Full Trello card URL |
 | status | enum | yes | `pending`, `transcribed`, `summarized`, `completed`, `failed` |
@@ -341,7 +482,7 @@ List of all processed recordings stored in DB.
 | Field | Type | Description |
 |-------|------|-------------|
 | configured.stt | boolean | STT key is set |
-| configured.notion | boolean | Notion token is set |
+| configured.ai extraction | boolean | AI extraction token is set |
 | configured.trello | boolean | Trello keys are set |
 | configured.allReady | boolean | All three services configured |
 | sttProvider | string | "whisper" or "google" |

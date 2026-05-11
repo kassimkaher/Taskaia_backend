@@ -34,10 +34,10 @@ backend/
 │   │   └── stt/
 │   │       ├── whisper.service.ts
 │   │       └── google-stt.service.ts
-│   ├── notion/
-│   │   ├── notion.controller.ts
-│   │   ├── notion.service.ts
-│   │   └── notion.routes.ts
+│   ├── ai extraction/
+│   │   ├── ai extraction.controller.ts
+│   │   ├── ai extraction.service.ts
+│   │   └── ai extraction.routes.ts
 │   └── trello/
 │       ├── trello.controller.ts
 │       ├── trello.service.ts
@@ -133,8 +133,8 @@ export class AppError extends Error {
 export const updateSettingsSchema = z.object({
   sttProvider: z.enum(['whisper', 'google']),
   sttApiKey: z.string().min(1),
-  notionToken: z.string().startsWith('secret_'),
-  notionPageId: z.string().length(32),
+  groqApiKey: z.string().startsWith('secret_'),
+  extractionSnapshotId: z.string().length(32),
   trelloApiKey: z.string().min(1),
   trelloToken: z.string().min(1),
   trelloBoardId: z.string().min(1),
@@ -172,8 +172,8 @@ model Recording {
   id              String   @id @default(cuid())
   rawText         String   @db.Text
   summary         String?  @db.Text
-  notionPageId    String?
-  notionPageUrl   String?
+  extractionSnapshotId    String?
+  extractionSnapshotUrl   String?
   trelloCardId    String?
   trelloCardUrl   String?
   status          RecordingStatus @default(PENDING)
@@ -221,7 +221,7 @@ fs.unlinkSync(req.file!.path);
 
 Set `MOCK_MODE=true` in `.env` during `/pBuild`. When `MOCK_MODE=true`:
 - STT service returns a fixed mock transcript from `MOCK_DATA.json`
-- Notion service returns mock summary
+- AI extraction service returns mock summary
 - MCP/Trello returns mock card data
 
 ```typescript
@@ -247,7 +247,7 @@ MOCK_MODE=true
 STT_PROVIDER=whisper
 OPENAI_API_KEY=
 
-# Notion
+# AI extraction
 NOTION_TOKEN=
 NOTION_PAGE_ID=
 

@@ -7,10 +7,10 @@
 ## I. Architecture Laws
 
 ### 1. The Flutter App Is a Thin Client
-The Flutter mobile app **never** calls Notion, Trello, OpenAI, or any third-party API directly. All external API calls go through the Node.js backend. No exceptions.
+The Flutter mobile app **never** calls AI extraction, Trello, OpenAI, or any third-party API directly. All external API calls go through the Node.js backend. No exceptions.
 
 ### 2. API Keys Live on the Server
-API keys (STT, Notion, Trello) are stored in the backend `.env` file only. They are never:
+API keys (STT, AI extraction, Trello) are stored in the backend `.env` file only. They are never:
 - Hardcoded in Flutter/Dart code
 - Stored in Flutter SharedPreferences
 - Logged to console or included in error messages
@@ -22,7 +22,7 @@ The Flutter app stores only the **backend base URL** in Flutter Secure Storage f
 The `@modelcontextprotocol/sdk` MCP client runs in the Node.js backend exclusively. All Trello operations (create card, fetch cards) go through MCP tools. Direct Trello REST API calls from Flutter are forbidden.
 
 ### 4. Pipeline Is Always Sequential
-The processing pipeline order is fixed: `Audio Upload → STT → Notion → Review → Trello`. No step may be skipped or reordered. If a step fails, the pipeline halts and returns an error — never silently continues.
+The processing pipeline order is fixed: `Audio Upload → STT → AI extraction → Review → Trello`. No step may be skipped or reordered. If a step fails, the pipeline halts and returns an error — never silently continues.
 
 ---
 
@@ -131,4 +131,4 @@ The backend `.env` file is in `.gitignore`. A `.env.example` is committed with a
 During `/pBuild`, all backend calls use `MOCK_DATA.json` responses served by the backend's mock layer. The app must be fully functional with mock data before real API integration begins.
 
 ### 19. Pipeline Must Be Testable End-to-End
-The backend must have at least one integration test that exercises the full pipeline: mock audio file → STT mock → Notion mock → Trello MCP mock → response.
+The backend must have at least one integration test that exercises the full pipeline: mock audio file → STT mock → AI extraction mock → Trello MCP mock → response.

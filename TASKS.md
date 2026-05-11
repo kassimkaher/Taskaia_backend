@@ -40,10 +40,10 @@
 
 ---
 
-## Phase 4: Notion Summarization
+## Phase 4: AI Extraction
 
-- [x] **4.1** POST `/api/notion/summarize`
-- [x] **4.2** Wire notion routes
+- [x] **4.1** POST `/api/ai/extract`
+- [x] **4.2** Wire ai extraction routes
 
 ---
 

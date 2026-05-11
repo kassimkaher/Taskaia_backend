@@ -6,8 +6,9 @@ import { errorMiddleware } from './common/middleware/error.middleware.js';
 import { healthRoutes } from './health/health.routes.js';
 import { settingsRoutes } from './settings/settings.routes.js';
 import { recordRoutes } from './record/record.routes.js';
-import { notionRoutes } from './notion/notion.routes.js';
+import { aiRoutes } from './ai/ai.routes.js';
 import { trelloRoutes } from './trello/trello.routes.js';
+import { jiraRoutes } from './jira/jira.routes.js';
 
 export const createApp = () => {
   const app = express();
@@ -26,8 +27,9 @@ export const createApp = () => {
   app.use('/api/health', healthRoutes);
   app.use('/api/settings', settingsRoutes);
   app.use('/api/record', recordRoutes);
-  app.use('/api/notion', notionRoutes);
+  app.use('/api/ai', aiRoutes);
   app.use('/api/trello', trelloRoutes);
+  app.use('/api/jira', jiraRoutes);
 
   app.use(errorMiddleware);
 

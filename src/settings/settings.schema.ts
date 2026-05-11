@@ -1,10 +1,18 @@
 import { z } from 'zod';
 
 export const updateSettingsSchema = z.object({
-  trelloApiKey: z.string().min(1),
-  trelloToken: z.string().min(1),
-  trelloBoardId: z.string().min(1),
-  trelloListId: z.string().min(1),
+  provider: z.enum(['trello', 'jira']).optional(),
+  // Trello
+  trelloApiKey: z.string().optional(),
+  trelloToken: z.string().optional(),
+  trelloBoardId: z.string().optional(),
+  trelloListId: z.string().optional(),
+  // Jira
+  jiraHost: z.string().optional(),
+  jiraEmail: z.string().optional(),
+  jiraApiToken: z.string().optional(),
+  jiraProjectKey: z.string().optional(),
+  jiraBoardId: z.string().optional(),
   autoSend: z.boolean().default(false),
 });
 

@@ -25,7 +25,7 @@
   @types/morgan                  ^1.9.9
   multer                         ^1.4.5-lts.1   (audio file uploads)
   @types/multer                  ^1.4.12
-  axios                          ^1.7.9         (STT + Notion API calls)
+  axios                          ^1.7.9         (STT + the Groq LLM API calls)
   @modelcontextprotocol/sdk      ^1.0.4         (MCP client for Trello)
   form-data                      ^4.0.1
   zod                            ^3.23.8
@@ -67,7 +67,7 @@
 - **Environment:** `.env` in backend root (never committed)
 
 ## Architecture Notes
-- Flutter app never calls Notion, Trello, or STT APIs directly
+- Flutter app never calls AI extraction, Trello, or STT APIs directly
 - All third-party API keys live in backend `.env`
 - MCP Client (`@modelcontextprotocol/sdk`) runs in backend only
 - Prisma used for persisting transcript/summary history locally (optional archive)

@@ -1,6 +1,7 @@
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
+import { apiError, success } from '../common/utils/response.js';
+import { updateSettingsSchema } from './settings.schema.js';
 import { settingsService } from './settings.service.js';
-import { success } from '../common/utils/response.js';
 
 export const settingsController = {
   async getSettings(req: Request, res: Response, next: NextFunction) {
@@ -12,7 +13,11 @@ export const settingsController = {
 
   async saveSettings(req: Request, res: Response, next: NextFunction) {
     try {
-      const data = await settingsService.saveSettings(req.body);
+      const parsed = updateSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(422).json(apiError('VALIDATION_ERROR', parsed.error.message));
+      }
+      const data = await settingsService.saveSettings(parsed.data);
       res.json(success(data, 'Settings saved successfully'));
     } catch (err) { next(err); }
   },

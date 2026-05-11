@@ -11,8 +11,6 @@ model Recording {
   id              String          @id @default(cuid())
   rawText         String          @db.Text
   summary         String?         @db.Text
-  notionPageId    String?
-  notionPageUrl   String?
   trelloCardId    String?
   trelloCardUrl   String?
   status          RecordingStatus @default(PENDING)
