@@ -71,6 +71,13 @@ const buildSystemPrompt = (ctx: ExtractContext) => {
   lines.push('You are a productivity assistant that turns voice-note transcripts into structured tasks.');
   lines.push('The transcript may be Arabic, English, or mixed Arabic/English. Understand all languages and dialectal Arabic when extracting fields.');
   lines.push('');
+  lines.push('LANGUAGE RULE (applies to title and description):');
+  lines.push('- Detect the dominant language of the transcript and write `title` and `description` in that EXACT language.');
+  lines.push('- If the transcript is English, the title and description MUST be English. Do NOT translate to Arabic.');
+  lines.push('- If the transcript is Arabic, the title and description MUST be Arabic. Do NOT translate to English.');
+  lines.push('- If the transcript mixes languages, keep the natural mixed language. Never invent a translation.');
+  lines.push('- Category/catalog values (labels, project keys, issue type names, member names) are taken from the catalogs verbatim and are not subject to this rule.');
+  lines.push('');
   lines.push('Respond with ONLY a valid JSON object — no markdown fences, no extra prose.');
   lines.push('');
 
@@ -86,9 +93,8 @@ const buildSystemPrompt = (ctx: ExtractContext) => {
     lines.push('}');
     lines.push('');
     lines.push('- Use ONLY ids from the catalogs below. Never invent ids. If unsure, use null or [].');
-    lines.push('- Write title and description in the same main language as the transcript. If the transcript is mixed, keep natural mixed language.');
-    lines.push('- title must be a single imperative sentence (e.g. "Add OAuth login" or "أصلح تسجيل الدخول").');
-    lines.push('- description should expand on the title with concrete details from the transcript.');
+    lines.push('- title must be a single imperative sentence; description should expand on it with concrete details from the transcript.');
+    lines.push('- Remember the LANGUAGE RULE above: title and description must match the transcript language exactly.');
 
     const t = ctx.trello;
     lines.push('');
@@ -117,8 +123,8 @@ const buildSystemPrompt = (ctx: ExtractContext) => {
     lines.push('- Arabic examples: "خلل" or "مشكلة" usually means Bug, "مهمة" usually means Task, "قصة" usually means Story.');
     lines.push('- Match assignee on the displayName, including Arabic/English transliterations; if unknown, return null.');
     lines.push('- Sprint should default to the active sprint when the transcript implies "this sprint", "السبرنت الحالي", or "هذا السبرنت".');
-    lines.push('- Write title and description in the same main language as the transcript. If the transcript is mixed, keep natural mixed language.');
     lines.push('- title must be a single imperative sentence; description should expand on it.');
+    lines.push('- Remember the LANGUAGE RULE above: title and description must match the transcript language exactly.');
 
     const j = ctx.jira;
     lines.push('');
