@@ -1,0 +1,42 @@
+module.exports = {
+  apps: [
+    {
+      name: 'taskaia-backend',
+      cwd: '/home/ubuntu/Taskaia_backend',
+      script: 'dist/server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'production',
+        HOST: '127.0.0.1',
+      },
+      out_file: '/home/ubuntu/Taskaia_backend/logs/taskaia.out.log',
+      error_file: '/home/ubuntu/Taskaia_backend/logs/taskaia.err.log',
+      merge_logs: true,
+      time: true,
+    },
+    {
+      name: 'python-api',
+      cwd: '/home/ubuntu/api',
+      script: '/home/ubuntu/api/.venv/bin/uvicorn',
+      args: 'app.main:app --host 127.0.0.1 --port 3000',
+      interpreter: '/home/ubuntu/api/.venv/bin/python3',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '4G',
+      kill_timeout: 8000,
+      env: {
+        TASKAIA_UPSTREAM: 'http://127.0.0.1:4001',
+      },
+      out_file: '/home/ubuntu/api/logs/python-api.out.log',
+      error_file: '/home/ubuntu/api/logs/python-api.err.log',
+      merge_logs: true,
+      time: true,
+    },
+  ],
+};

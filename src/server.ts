@@ -5,8 +5,10 @@ import { logger } from './common/utils/logger.js';
 
 const app = createApp();
 
-app.listen(env.PORT, '0.0.0.0', () => {
-  logger.info(`🚀 Taskaia backend running on http://0.0.0.0:${env.PORT}/api`);
+const HOST = process.env.HOST ?? '127.0.0.1';
+
+app.listen(env.PORT, HOST, () => {
+  logger.info(`🚀 Taskaia backend running on http://${HOST}:${env.PORT}/api`);
   logger.info(`   MOCK_MODE: ${env.MOCK_MODE}`);
   logger.info(`   NODE_ENV:  ${env.NODE_ENV}`);
 });
